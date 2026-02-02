@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بازی آموزش پیانو - نسخه هوشمند</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&display=swap');
+        
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            background-color: #1a202c;
+            color: #e2e8f0;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        /* Piano Styles */
+        .piano-wrapper {
+            direction: ltr; 
+        }
+
+        .piano-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            margin: 20px auto;
+            background: #2d3748;
+            padding: 10px 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            direction: ltr; /* Force LTR for piano keys */
+        }
+
+        .key {
+            position: relative;
+            cursor: pointer;
+            border-radius: 0 0 5px 5px;
+            transition: all 0.1s ease;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 10px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            user-select: none;
+        }
+
+        .white-key {
+            width: 60px;
+            height: 200px;
+            background: white;
+            border: 1px solid #ccc;
+            margin: 0 2px;
+            color: #333;
+            z-index: 1;
+        }
+
+        .white-key.active {
+            background: #4fd1c5;
+            transform: translateY(2px);
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        .white-key.demo-active {
+            background: #f6ad55 !important; /* Orange for demo */
+            transform: translateY(2px);
+        }
+
+        .black-key {
+            width: 40px;
+            height: 120px;
+            background: #111;
+            position: absolute;
+            top: 0;
+            z-index: 2;
+            color: white;
+            border-radius: 0 0 3px 3px;
+        }
+
+        .black-key.active {
+            background: #d53f8c;
+            box-shadow: inset 0 2px 5px rgba(255,255,255,0.2);
+        }
+        
+        .black-key.demo-active {
+            background: #ed8936 !important; /* Orange-dark for demo */
+        }
+
+        /* --- استایل جدید برای راهنمای کلیدها --- */
+        @keyframes guide-pulse {
+            0%, 100% { box-shadow: 0 0 5px 2px rgba(79, 209, 197, 0.6); transform: translateY(0); }
+            50% { box-shadow: 0 0 15px 5px rgba(79, 209, 197, 0.2); transform: translateY(1px); }
+        }
+
+        .white-key.guide-active {
+            background: #b2f5ea !important; /* Teal-200 */
+            border-bottom: 4px solid #319795;
+            animation: guide-pulse 1.5s infinite;
+            z-index: 10;
+        }
+
+        .black-key.guide-active {
+            background: #f687b3 !important; /* Pink-400 */
+            border-bottom: 2px solid #b83280;
+            box-shadow: 0 0 15px rgba(236, 72, 153, 0.8);
+            z-index: 20;
+        }
+
+        .key-hint {
+            position: absolute;
+            bottom: 30px;
+            font-size: 0.6rem;
+            opacity: 0.7;
+            text-transform: uppercase;
+        }
+
+        #confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .hidden { display: none !important; }
+        
+        .modal {
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+        }
+
+        /* Notes Display LTR Fix */
+        #target-notes {
+            direction: ltr;
+        }
+        
+        /* Pulse animation for help */
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+        }
+        .animate-pulse-red {
+            animation: pulse-red 1s infinite;
+        }
+        
+        /* Song Mode Animation */
+        @keyframes border-glow {
+            0% { border-color: #ed8936; box-shadow: 0 0 10px rgba(237, 137, 54, 0.2); }
+            50% { border-color: #fbd38d; box-shadow: 0 0 20px rgba(237, 137, 54, 0.6); }
+            100% { border-color: #ed8936; box-shadow: 0 0 10px rgba(237, 137, 54, 0.2); }
+        }
+        .song-mode-border {
+            animation: border-glow 2s infinite;
+            border-width: 2px;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- Login Screen -->
+    <div id="login-screen" class="flex items-center justify-center min-h-screen bg-gray-900">
+        <div class="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
+            <h1 class="text-3xl font-bold text-center mb-2 text-teal-400">ورود به آکادمی پیانو</h1>
+            <p class="text-gray-400 text-center mb-6 text-sm">نام کاربری و کدملی خود را وارد کنید</p>
+            
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">نام کاربری</label>
+                    <input type="text" id="username" class="w-full bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none focus:border-teal-500 text-left" placeholder="مثال: علی گل محمدی">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">کد ملی</label>
+                    <input type="text" id="national-id" required class="w-full bg-gray-700 border border-gray-600 rounded p-2 focus:outline-none focus:border-teal-500 text-left" placeholder="کد ملی ده رقمی (فارسی یا انگلیسی)">
+                </div>
+                
+                <div id="login-error" class="hidden text-red-400 text-sm text-center bg-red-900/30 p-2 rounded border border-red-800">
+                    کد ملی یا نام کاربری در سیستم وجود ندارد.
+                </div>
+
+                <button type="submit" class="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-2 px-4 rounded transition">
+                    شروع آموزش
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="hidden flex-grow flex flex-col items-center justify-center p-4 relative">
+        <canvas id="confetti-canvas"></canvas>
+
+        <!-- Header Info -->
+        <div class="w-full max-w-6xl flex justify-between items-center mb-4 bg-gray-800 p-4 rounded-lg shadow-lg">
+            <div class="flex items-center gap-4">
+                <div class="bg-gray-700 p-2 rounded">
+                    <span class="text-gray-400 text-xs">بازیکن</span>
+                    <div id="display-username" class="font-bold text-lg text-teal-300">---</div>
+                </div>
+                <div class="bg-gray-700 p-2 rounded w-32">
+                    <span class="text-gray-400 text-xs">وضعیت</span>
+                    <div class="font-bold text-sm text-yellow-400" id="learning-status">آموزش</div>
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <div class="text-3xl font-bold text-yellow-400" id="current-score">0</div>
+                <div class="text-xs text-gray-400">امتیاز کل</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full max-w-6xl">
+            
+            <!-- Game Area -->
+            <div class="lg:col-span-2 flex flex-col items-center">
+                <!-- Instruction Card -->
+                <div id="instruction-card" class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 w-full text-center mb-6 relative overflow-hidden transition-all duration-300">
+                    <div id="side-indicator" class="absolute top-0 left-0 w-2 h-full bg-teal-500"></div>
+                    
+                    <div class="flex justify-between items-start w-full">
+                        <span id="level-counter" class="text-gray-500 text-sm">مرحله ۱</span>
+                        <span id="mode-badge" class="bg-teal-900 text-teal-300 px-2 py-0.5 rounded text-xs border border-teal-700">آموزشی</span>
+                    </div>
+
+                    <h2 class="text-2xl font-bold mb-2 text-white mt-2">
+                        <span id="target-title" class="text-teal-400 text-3xl dir-ltr">C3</span>
+                    </h2>
+                    
+                    <p id="instruction-text" class="text-gray-300 mb-4">کلید مشخص شده را فشار دهید:</p>
+                    
+                    <!-- Notes Display (LTR) -->
+                    <div id="target-notes" class="flex gap-2 justify-center min-h-[40px] items-center flex-wrap">
+                        <!-- Target notes injected here -->
+                    </div>
+
+                    <div id="feedback-msg" class="text-red-400 font-bold mt-2 h-6 text-sm opacity-0 transition-opacity">
+                        اشتباه بود! دوباره تلاش کنید.
+                    </div>
+                    
+                    <button id="replay-song-btn" class="hidden mt-4 bg-orange-600 hover:bg-orange-500 text-white px-4 py-2 rounded shadow flex items-center gap-2 mx-auto">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                        </svg>
+                        پخش مجدد ملودی
+                    </button>
+                </div>
+
+                <!-- Piano -->
+                <div class="piano-wrapper overflow-x-auto w-full flex justify-center pb-4">
+                    <div class="piano-container" id="piano">
+                        <!-- Keys generated by JS -->
+                    </div>
+                </div>
+
+                <!-- Keyboard Instructions -->
+                <div class="mt-4 text-sm text-gray-400 bg-gray-800 p-3 rounded border border-gray-700">
+                    <p class="text-center">🎹 راهنما: از کلیدهای <span class="text-white font-mono bg-gray-600 px-1 rounded">Z</span> تا <span class="text-white font-mono bg-gray-600 px-1 rounded">/</span> استفاده کنید.</p>
+                </div>
+            </div>
+
+            <!-- Leaderboard Sidebar -->
+            <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 overflow-hidden flex flex-col h-full max-h-[500px]">
+                <div class="bg-gray-700 p-3 border-b border-gray-600">
+                    <h3 class="font-bold text-center flex items-center justify-center gap-2">
+                        <span>🏆</span> جدول امتیازات زنده
+                    </h3>
+                </div>
+                <div class="p-4 overflow-y-auto flex-grow">
+                    <table class="w-full text-sm">
+                        <thead class="text-gray-400 border-b border-gray-600">
+                            <tr>
+                                <th class="pb-2 text-right">#</th>
+                                <th class="pb-2 text-right">نام</th>
+                                <th class="pb-2 text-left">امتیاز</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-body" class="divide-y divide-gray-700">
+                            <!-- Rows injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script -->
+    <script>
+        /* --- Audio Engine --- */
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, duration = 1.5) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        /* --- Game Data --- */
+        // Updated MAPPING: Using "code" (Physical Key Position) instead of "key" char.
+        // This solves the Persian/English keyboard layout issue.
+        const NOTE_MAPPING = {
+            'KeyZ': { note: 'C3', freq: 130.81, type: 'white', label: 'Z' },
+            'KeyS': { note: 'C#3', freq: 138.59, type: 'black', pos: 40, label: 'S' }, 
+            'KeyX': { note: 'D3', freq: 146.83, type: 'white', label: 'X' },
+            'KeyD': { note: 'D#3', freq: 155.56, type: 'black', pos: 105, label: 'D' },
+            'KeyC': { note: 'E3', freq: 164.81, type: 'white', label: 'C' },
+            'KeyV': { note: 'F3', freq: 174.61, type: 'white', label: 'V' },
+            'KeyG': { note: 'F#3', freq: 185.00, type: 'black', pos: 235, label: 'G' },
+            'KeyB': { note: 'G3', freq: 196.00, type: 'white', label: 'B' },
+            'KeyH': { note: 'G#3', freq: 207.65, type: 'black', pos: 300, label: 'H' },
+            'KeyN': { note: 'A3', freq: 220.00, type: 'white', label: 'N' },
+            'KeyJ': { note: 'A#3', freq: 233.08, type: 'black', pos: 365, label: 'J' },
+            'KeyM': { note: 'B3', freq: 246.94, type: 'white', label: 'M' },
+            'Comma': { note: 'C4', freq: 261.63, type: 'white', label: ',' },
+            'KeyL': { note: 'C#4', freq: 277.18, type: 'black', pos: 495, label: 'L' },
+            'Period': { note: 'D4', freq: 293.66, type: 'white', label: '.' },
+            'Semicolon': { note: 'D#4', freq: 311.13, type: 'black', pos: 560, label: ';' },
+            'Slash': { note: 'E4', freq: 329.63, type: 'white', label: '/' }
+        };
+
+        // Helper to find key code by note name
+        function getKeyCodeByNote(note) {
+            return Object.keys(NOTE_MAPPING).find(key => NOTE_MAPPING[key].note === note);
+        }
+
+        // Single Notes Lessons (Start simple)
+        const SINGLE_NOTE_DB = [
+            { id: 'n0', name: "Note C", notes: ['C3'] },
+            { id: 'n1', name: "Note D", notes: ['D3'] },
+            { id: 'n2', name: "Note E", notes: ['E3'] },
+            { id: 'n3', name: "Note F", notes: ['F3'] },
+            { id: 'n4', name: "Note G", notes: ['G3'] },
+            { id: 'n5', name: "Note A", notes: ['A3'] },
+            { id: 'n6', name: "Note B", notes: ['B3'] },
+            { id: 'n7', name: "Note C (High)", notes: ['C4'] },
+            { id: 'n8', name: "Note C# (Black)", notes: ['C#3'] },
+            { id: 'n9', name: "Note F# (Black)", notes: ['F#3'] }
+        ];
+
+        // Songs for Rhythm Challenge (Expanded to ~20 Songs)
+        const SONG_DB = [
+            // Level 1-4 (Basic)
+            { 
+                name: "Twinkle Twinkle", 
+                sequence: ['C3', 'C3', 'G3', 'G3', 'A3', 'A3', 'G3'],
+                tempo: 600
+            },
+            { 
+                name: "Happy Birthday", 
+                sequence: ['C3', 'C3', 'D3', 'C3', 'F3', 'E3'],
+                tempo: 600
+            },
+            {
+                name: "Jingle Bells",
+                sequence: ['E3', 'E3', 'E3', 'E3', 'E3', 'E3', 'E3', 'G3', 'C3', 'D3', 'E3'],
+                tempo: 400
+            },
+            {
+                name: "Mary Had a Little Lamb",
+                sequence: ['E3', 'D3', 'C3', 'D3', 'E3', 'E3', 'E3'],
+                tempo: 500
+            },
+            {
+                name: "Row Row Row Your Boat",
+                sequence: ['C3', 'C3', 'C3', 'D3', 'E3', 'E3', 'D3', 'E3', 'F3', 'G3'],
+                tempo: 450
+            },
+            {
+                name: "Ode to Joy",
+                sequence: ['E3', 'E3', 'F3', 'G3', 'G3', 'F3', 'E3', 'D3', 'C3', 'C3', 'D3', 'E3', 'E3', 'D3', 'D3'],
+                tempo: 500
+            },
+            {
+                name: "London Bridge",
+                sequence: ['G3', 'A3', 'G3', 'F3', 'E3', 'F3', 'G3', 'D3', 'E3', 'F3', 'E3', 'F3', 'G3'],
+                tempo: 500
+            },
+            {
+                name: "Frère Jacques",
+                sequence: ['C3', 'D3', 'E3', 'C3', 'C3', 'D3', 'E3', 'C3', 'E3', 'F3', 'G3'],
+                tempo: 450
+            },
+            {
+                name: "Old McDonald",
+                sequence: ['G3', 'G3', 'G3', 'D3', 'E3', 'E3', 'D3', 'B3', 'B3', 'A3', 'A3', 'G3'],
+                tempo: 500
+            },
+            {
+                name: "Seven Nation Army",
+                sequence: ['A3', 'A3', 'C4', 'A3', 'G3', 'F3', 'E3'],
+                tempo: 600
+            },
+            {
+                name: "Imperial March (Star Wars)",
+                sequence: ['G3', 'G3', 'G3', 'D#3', 'A#3', 'G3', 'D#3', 'A#3', 'G3'],
+                tempo: 550
+            },
+            {
+                name: "The Godfather",
+                sequence: ['E3', 'A3', 'C4', 'B3', 'A3', 'C4', 'A3', 'B3', 'A3', 'F3', 'G3', 'E3'],
+                tempo: 600
+            },
+            {
+                name: "Mission Impossible",
+                sequence: ['G3', 'G3', 'A#3', 'C4', 'G3', 'G3', 'F3', 'F#3'],
+                tempo: 350
+            },
+            {
+                name: "Pink Panther",
+                sequence: ['C#3', 'D3', 'E3', 'F3', 'C#3', 'D3', 'E3', 'F3', 'A#3', 'A3'],
+                tempo: 300
+            },
+            {
+                name: "Für Elise (Intro)",
+                sequence: ['E4', 'D#4', 'E4', 'D#4', 'E4', 'B3', 'D4', 'C4', 'A3'],
+                tempo: 300
+            },
+            {
+                name: "Tetris Theme",
+                sequence: ['E4', 'B3', 'C4', 'D4', 'C4', 'B3', 'A3', 'A3', 'C4', 'E4', 'D4', 'C4', 'B3'],
+                tempo: 350
+            },
+            {
+                name: "Bella Ciao",
+                sequence: ['E3', 'A3', 'B3', 'C4', 'A3', 'E3', 'A3', 'B3', 'C4', 'A3'],
+                tempo: 400
+            },
+            {
+                name: "Game of Thrones",
+                sequence: ['G3', 'C3', 'D#3', 'F3', 'G3', 'C3', 'D#3', 'F3'],
+                tempo: 600
+            },
+            {
+                name: "Silent Night",
+                sequence: ['G3', 'A3', 'G3', 'E3', 'G3', 'A3', 'G3', 'E3', 'D4', 'D4', 'B3', 'C4', 'C4', 'G3'],
+                tempo: 600
+            }
+        ];
+
+        const ALLOWED_USERS = [
+            { name: "علی گل محمدی", id: "2721618812" },
+            { name: "سروش پورنصیری", id: "2741628812" },
+            { name: "آریان اخوان", id: "1799618812" },
+            { name: "محمد اسماعیلی", id: "1783457210" },
+            { name: "غزل آهنجان", id: "8234568129" }
+        ];
+
+        /* --- State Management --- */
+        let state = {
+            username: '',
+            score: 0,
+            
+            // Educational Queue
+            queue: [], 
+            reviewBuffer: [], 
+            masteredItems: new Set(),
+            nextNewItemIndex: 0,
+            encounteredNotes: new Set(), // Set of notes user has seen so far
+            
+            // Task State
+            currentTask: null, 
+            tasksCompleted: 0,
+            
+            // Song Specific State
+            songProgress: 0,
+            isPlayingDemo: false,
+            
+            // Input State
+            activeKeys: new Set(),
+            activeNotes: new Set(),
+            isGameActive: false,
+            failedCurrentTest: false
+        };
+
+        let leaderboard = [
+            { name: "آریان اخوان", score: 120 },
+            { name: "سروش پورنصیری", score: 95 },
+            { name: "غزل آهنجان", score: 88 },
+            { name: "محمد اسماعیلی", score: 70 },
+            { name: "علی گل محمدی", score: 65 }
+        ];
+
+        /* --- Utility Functions --- */
+        // Convert Persian/Arabic digits to English digits
+        function normalizeDigits(str) {
+            return str.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+                      .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+        }
+
+        /* --- Logic --- */
+        
+        function initGameQueue() {
+            state.queue.push({ type: 'note', index: 0, mode: 'learn' });
+            state.nextNewItemIndex = 0;
+            state.reviewBuffer = [];
+            state.encounteredNotes.clear();
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function getLearnedNotes() {
+            const notes = new Set();
+            for(let i = 0; i < state.nextNewItemIndex; i++) {
+                SINGLE_NOTE_DB[i].notes.forEach(n => notes.add(n));
+            }
+            state.encounteredNotes.forEach(n => notes.add(n));
+            return notes;
+        }
+
+        function getUnlockableSong() {
+            const learned = getLearnedNotes();
+            
+            const playableSongs = SONG_DB.filter(song => {
+                return song.sequence.every(note => learned.has(note));
+            });
+            
+            if (playableSongs.length > 0) {
+                return playableSongs[Math.floor(Math.random() * playableSongs.length)];
+            }
+            
+            const learnedArray = Array.from(learned);
+            if (learnedArray.length === 0) learnedArray.push('C3');
+            
+            const randomSequence = [];
+            for(let i=0; i<8; i++) {
+                randomSequence.push(learnedArray[Math.floor(Math.random() * learnedArray.length)]);
+            }
+            
+            return {
+                name: "ملودی تمرینی (ساختگی)",
+                sequence: randomSequence,
+                tempo: 500
+            };
+        }
+
+        function getNextTask() {
+            // Check for Song Challenge (Every 10 levels)
+            if (state.tasksCompleted > 0 && state.tasksCompleted % 10 === 0) {
+                const taughtNotes = new Set();
+                for (let i = 0; i < state.nextNewItemIndex; i++) {
+                    SINGLE_NOTE_DB[i].notes.forEach(n => taughtNotes.add(n));
+                }
+
+                const playableSongs = SONG_DB.filter(song => {
+                    return song.sequence.every(note => taughtNotes.has(note));
+                });
+
+                let selectedSong;
+
+                if (playableSongs.length > 0) {
+                    selectedSong = playableSongs[Math.floor(Math.random() * playableSongs.length)];
+                } else {
+                    const availableNotes = Array.from(taughtNotes);
+                    if (availableNotes.length === 0) availableNotes.push('C3');
+
+                    const randomSequence = [];
+                    const length = 5 + Math.floor(Math.random() * 3); 
+                    for(let k=0; k < length; k++) {
+                        randomSequence.push(availableNotes[Math.floor(Math.random() * availableNotes.length)]);
+                    }
+
+                    selectedSong = {
+                        name: "تمرین ملودی (ساختگی)",
+                        sequence: randomSequence,
+                        tempo: 500
+                    };
+                }
+
+                return { 
+                    type: 'song', 
+                    data: selectedSong, 
+                    mode: 'challenge' 
+                };
+            }
+
+            if (state.queue.length > 0) return state.queue.shift();
+
+            if (state.reviewBuffer.length > 0) {
+                const reviewIndex = state.reviewBuffer.pop();
+                return { type: 'note', index: reviewIndex, mode: 'test' };
+            }
+
+            if (state.masteredItems.size > 0) {
+                state.reviewBuffer = shuffleArray(Array.from(state.masteredItems));
+            }
+
+            if (state.nextNewItemIndex >= SINGLE_NOTE_DB.length) {
+                state.nextNewItemIndex = 0; 
+            }
+            
+            const taskIndex = state.nextNewItemIndex;
+            state.nextNewItemIndex++;
+            
+            SINGLE_NOTE_DB[taskIndex].notes.forEach(n => state.encounteredNotes.add(n));
+
+            return { type: 'note', index: taskIndex, mode: 'learn' };
+        }
+
+        /* --- Song Logic --- */
+        async function startSongTask() {
+            state.songProgress = 0;
+            document.getElementById('replay-song-btn').classList.remove('hidden');
+            await playSongDemo(state.currentTask.data, true); 
+        }
+
+        function playSongDemo(songData, showVisuals = false) {
+            if (state.isPlayingDemo) return;
+            state.isPlayingDemo = true;
+            
+            let i = 0;
+            const notePills = document.querySelectorAll('#target-notes .song-note-pill');
+
+            const interval = setInterval(() => {
+                if (i > 0 && i <= notePills.length) {
+                    if(notePills[i-1]) {
+                        notePills[i-1].classList.remove('bg-orange-500', 'text-white', 'scale-110');
+                        notePills[i-1].classList.add('bg-gray-700', 'text-gray-300');
+                    }
+                }
+
+                if (i >= songData.sequence.length) {
+                    clearInterval(interval);
+                    state.isPlayingDemo = false;
+                    return;
+                }
+                
+                const note = songData.sequence[i];
+                const keyCode = getKeyCodeByNote(note);
+                if (!keyCode) { i++; return; }
+                const noteInfo = NOTE_MAPPING[keyCode];
+                
+                if (notePills[i]) {
+                    notePills[i].classList.remove('bg-gray-700', 'text-gray-300');
+                    notePills[i].classList.add('bg-orange-500', 'text-white', 'scale-110', 'transition-all');
+                }
+
+                playTone(noteInfo.freq, 0.4);
+                
+                if (showVisuals) {
+                    const keyEl = document.querySelector(`.key[data-code="${keyCode}"]`);
+                    if (keyEl) {
+                        keyEl.classList.add('demo-active');
+                        setTimeout(() => keyEl.classList.remove('demo-active'), 300);
+                    }
+                }
+                
+                i++;
+            }, songData.tempo);
+        }
+
+        /* --- Handlers --- */
+        function handleTaskSuccess() {
+            const task = state.currentTask;
+            
+            if (task.type === 'note') {
+                if (task.mode === 'learn') {
+                    state.queue.unshift({ type: 'note', index: task.index, mode: 'test' });
+                } else if (task.mode === 'test') {
+                    if (!state.failedCurrentTest) {
+                        state.masteredItems.add(task.index);
+                        updateScore(5);
+                    } else {
+                        updateScore(2);
+                    }
+                }
+            } else if (task.type === 'song') {
+                updateScore(20); 
+            }
+            
+            state.tasksCompleted++;
+            state.failedCurrentTest = false;
+        }
+
+        function handleTaskFailure() {
+            const task = state.currentTask;
+            
+            if (task.type === 'note' && task.mode === 'test' && !state.failedCurrentTest) {
+                state.failedCurrentTest = true;
+                renderTaskInfo('learn', true); 
+                const retry = { type: 'note', index: task.index, mode: 'test' };
+                if (state.queue.length >= 2) state.queue.splice(2, 0, retry);
+                else state.queue.push(retry);
+                
+                updateScore(-2); 
+            }
+        }
+
+        /* --- Input Handling --- */
+        function handleInput(keyCode, isPressed) {
+            // keyCode used instead of char to be layout independent
+            if (!state.isGameActive || state.isPlayingDemo) return;
+            const noteData = NOTE_MAPPING[keyCode];
+            if (!noteData) return;
+
+            const keyEl = document.querySelector(`.key[data-code="${keyCode}"]`);
+
+            if (isPressed) {
+                if (!state.activeKeys.has(keyCode)) {
+                    state.activeKeys.add(keyCode);
+                    state.activeNotes.add(noteData.note);
+                    playTone(noteData.freq);
+                    if (keyEl) keyEl.classList.add('active');
+                    
+                    if (state.currentTask && state.currentTask.type === 'song') {
+                        validateSongNote(noteData.note);
+                    } else if (state.currentTask) {
+                        validateNoteTask(noteData.note);
+                    }
+                }
+            } else {
+                state.activeKeys.delete(keyCode);
+                state.activeNotes.delete(noteData.note);
+                if (keyEl) keyEl.classList.remove('active');
+            }
+        }
+
+        function validateNoteTask(playedNote) {
+            const currentItem = SINGLE_NOTE_DB[state.currentTask.index];
+            const targetNote = currentItem.notes[0]; 
+
+            if (playedNote !== targetNote) {
+                if (state.currentTask.mode === 'learn') {
+                    flashFeedback(false, "اشتباه است، دوباره تلاش کنید");
+                } else {
+                    handleTaskFailure();
+                }
+            } else {
+                handleTaskSuccess();
+                fireConfetti();
+                setTimeout(loadNextTask, 1000);
+            }
+        }
+
+        function validateSongNote(playedNote) {
+            const song = state.currentTask.data;
+            const expectedNote = song.sequence[state.songProgress];
+            
+            if (playedNote === expectedNote) {
+                state.songProgress++;
+                if (state.songProgress >= song.sequence.length) {
+                    handleTaskSuccess();
+                    fireConfetti();
+                    setTimeout(loadNextTask, 1500);
+                }
+            } else {
+                state.songProgress = 0; 
+                updateScore(-5); 
+                flashFeedback(false, "اشتباه! به راهنمایی دقت کن");
+                
+                setTimeout(() => {
+                    playSongDemo(song, true); 
+                }, 1000);
+            }
+        }
+
+        /* --- UI Rendering --- */
+        function loadNextTask() {
+            state.currentTask = getNextTask();
+            state.activeKeys.clear();
+            state.activeNotes.clear();
+            state.failedCurrentTest = false;
+            
+            document.querySelectorAll('.key').forEach(k => {
+                k.classList.remove('active');
+                k.classList.remove('guide-active');
+            });
+
+            document.getElementById('feedback-msg').style.opacity = '0';
+            document.getElementById('replay-song-btn').classList.add('hidden');
+            document.getElementById('instruction-card').classList.remove('song-mode-border');
+
+            if (state.currentTask.type === 'song') {
+                renderSongTask();
+                startSongTask();
+            } else {
+                renderTaskInfo(state.currentTask.mode);
+            }
+        }
+
+        function renderSongTask() {
+            const card = document.getElementById('instruction-card');
+            const sideColor = document.getElementById('side-indicator');
+            const badge = document.getElementById('mode-badge');
+            const notesContainer = document.getElementById('target-notes');
+            
+            card.classList.add('song-mode-border');
+            sideColor.className = "absolute top-0 left-0 w-2 h-full bg-orange-500";
+            badge.textContent = "چالش ریتمیک";
+            badge.className = "bg-orange-900 text-orange-300 px-2 py-0.5 rounded text-xs border border-orange-700";
+            
+            document.getElementById('target-title').textContent = "🎵 " + state.currentTask.data.name;
+            document.getElementById('instruction-text').textContent = "به ملودی گوش دهید و آن را تکرار کنید.";
+            
+            notesContainer.innerHTML = state.currentTask.data.sequence.map((n, i) => 
+                `<div class="song-note-pill w-10 h-10 rounded-full bg-gray-700 border border-gray-600 flex items-center justify-center text-xs text-gray-300 font-bold shadow-md transition-all">${n}</div>`
+            ).join('<span class="w-2"></span>');
+            
+            const btn = document.getElementById('replay-song-btn');
+            btn.onclick = () => playSongDemo(state.currentTask.data, true);
+        }
+
+        function renderTaskInfo(mode, isError = false) {
+            const item = SINGLE_NOTE_DB[state.currentTask.index];
+            const card = document.getElementById('instruction-card');
+            const sideColor = document.getElementById('side-indicator');
+            const badge = document.getElementById('mode-badge');
+            const notesContainer = document.getElementById('target-notes');
+            const feedback = document.getElementById('feedback-msg');
+            
+            document.querySelectorAll('.key').forEach(k => k.classList.remove('guide-active'));
+
+            document.getElementById('target-title').textContent = item.name;
+            document.getElementById('level-counter').textContent = `مرحله ${state.tasksCompleted + 1}`;
+
+            if (isError) {
+                feedback.style.opacity = '1';
+                card.classList.add('animate-pulse-red');
+                setTimeout(() => card.classList.remove('animate-pulse-red'), 1000);
+            }
+
+            if (mode === 'learn' || isError) {
+                sideColor.className = "absolute top-0 left-0 w-2 h-full bg-teal-500";
+                badge.textContent = isError ? "اصلاح کنید" : "آموزش";
+                badge.className = isError 
+                    ? "bg-red-900 text-red-300 px-2 py-0.5 rounded text-xs border border-red-700"
+                    : "bg-teal-900 text-teal-300 px-2 py-0.5 rounded text-xs border border-teal-700";
+                
+                document.getElementById('instruction-text').textContent = "کلید روشن شده را فشار دهید:";
+                notesContainer.innerHTML = item.notes.map(n => 
+                    `<div class="bg-gray-700 text-teal-300 px-4 py-2 rounded font-mono font-bold border border-teal-800 text-xl">${n}</div>`
+                ).join('');
+
+                item.notes.forEach(noteName => {
+                    const keyCode = getKeyCodeByNote(noteName);
+                    if (keyCode) {
+                        const keyEl = document.querySelector(`.key[data-code="${keyCode}"]`);
+                        if (keyEl) keyEl.classList.add('guide-active');
+                    }
+                });
+
+            } else {
+                sideColor.className = "absolute top-0 left-0 w-2 h-full bg-purple-500";
+                badge.textContent = "آزمون حافظه";
+                badge.className = "bg-purple-900 text-purple-300 px-2 py-0.5 rounded text-xs border border-purple-700";
+                
+                document.getElementById('instruction-text').textContent = "جای این نت کجاست؟";
+                notesContainer.innerHTML = `<div class="bg-gray-800 text-purple-500 px-4 py-2 rounded font-mono font-bold border border-dashed border-purple-800 text-xl">?</div>`;
+            }
+        }
+
+        function flashFeedback(isPositive, msg) {
+            const fb = document.getElementById('feedback-msg');
+            fb.textContent = msg;
+            fb.style.opacity = '1';
+            fb.className = isPositive ? "text-green-400 font-bold mt-2 h-6 text-sm" : "text-red-400 font-bold mt-2 h-6 text-sm";
+            setTimeout(() => fb.style.opacity = '0', 2000);
+        }
+
+        /* --- Initialization --- */
+        const loginForm = document.getElementById('login-form');
+        const loginScreen = document.getElementById('login-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const pianoContainer = document.getElementById('piano');
+        const loginError = document.getElementById('login-error');
+
+        function initPiano() {
+            pianoContainer.innerHTML = '';
+            // Render keys...
+            Object.entries(NOTE_MAPPING).forEach(([keyCode, data]) => {
+                if (data.type === 'white') {
+                    const keyEl = document.createElement('div');
+                    keyEl.className = 'key white-key';
+                    keyEl.dataset.note = data.note;
+                    keyEl.dataset.code = keyCode;
+                    keyEl.innerHTML = `<span class="key-note text-xs text-gray-400 absolute top-2">${data.note}</span><span class="key-hint">${data.label}</span>`;
+                    
+                    keyEl.addEventListener('mousedown', () => handleInput(keyCode, true));
+                    keyEl.addEventListener('mouseup', () => handleInput(keyCode, false));
+                    keyEl.addEventListener('mouseleave', () => handleInput(keyCode, false));
+                    pianoContainer.appendChild(keyEl);
+                }
+            });
+            Object.entries(NOTE_MAPPING).forEach(([keyCode, data]) => {
+                if (data.type === 'black') {
+                    const keyEl = document.createElement('div');
+                    keyEl.className = 'key black-key';
+                    keyEl.style.left = `${data.pos}px`;
+                    keyEl.dataset.note = data.note;
+                    keyEl.dataset.code = keyCode;
+                    keyEl.addEventListener('mousedown', () => handleInput(keyCode, true));
+                    keyEl.addEventListener('mouseup', () => handleInput(keyCode, false));
+                    keyEl.addEventListener('mouseleave', () => handleInput(keyCode, false));
+                    pianoContainer.appendChild(keyEl);
+                }
+            });
+        }
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            // Normalize ID input
+            let inputId = document.getElementById('national-id').value.trim();
+            inputId = normalizeDigits(inputId);
+
+            const validUser = ALLOWED_USERS.find(u => u.id === inputId);
+
+            if (!validUser) {
+                loginError.classList.remove('hidden');
+                return;
+            }
+
+            state.username = validUser.name;
+            state.isGameActive = true;
+            
+            if (!leaderboard.some(u => u.name === validUser.name)) {
+                leaderboard.push({ name: validUser.name, score: 0, isCurrent: true });
+            } else {
+                const existing = leaderboard.find(u => u.name === validUser.name);
+                existing.isCurrent = true;
+                existing.score = 0;
+            }
+            
+            document.getElementById('display-username').textContent = state.username;
+            loginScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            
+            initPiano();
+            initGameQueue();
+            loadNextTask();
+            updateLeaderboard();
+        });
+
+        function updateScore(delta) {
+            state.score += delta;
+            const display = document.getElementById('current-score');
+            display.textContent = state.score;
+            display.classList.add(delta > 0 ? 'text-green-400' : 'text-red-500');
+            display.classList.remove('text-yellow-400');
+            setTimeout(() => {
+                display.classList.remove('text-green-400', 'text-red-500');
+                display.classList.add('text-yellow-400');
+            }, 300);
+
+            const userEntry = leaderboard.find(u => u.isCurrent);
+            if (userEntry) userEntry.score = state.score;
+            updateLeaderboard();
+        }
+
+        function updateLeaderboard() {
+            leaderboard.sort((a, b) => b.score - a.score);
+            const tbody = document.getElementById('leaderboard-body');
+            tbody.innerHTML = leaderboard.map((u, index) => {
+                const rank = index + 1;
+                const isMe = u.isCurrent ? 'bg-teal-900/50 border-l-4 border-teal-500' : '';
+                return `
+                    <tr class="${isMe} hover:bg-gray-700/50 transition">
+                        <td class="py-2 px-2 text-right text-gray-400">${rank}</td>
+                        <td class="py-2 px-2 text-right font-medium ${u.isCurrent ? 'text-white' : 'text-gray-300'}">
+                            ${u.name} ${rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : ''}
+                        </td>
+                        <td class="py-2 px-2 text-left font-bold text-yellow-500" dir="ltr">${u.score}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        /* --- Confetti --- */
+        const canvas = document.getElementById('confetti-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function fireConfetti() {
+            for (let i = 0; i < 80; i++) {
+                particles.push({
+                    x: window.innerWidth / 2,
+                    y: window.innerHeight / 2,
+                    vx: (Math.random() - 0.5) * 20,
+                    vy: (Math.random() - 0.5) * 20,
+                    color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                    life: 80
+                });
+            }
+            requestAnimationFrame(updateConfetti);
+        }
+
+        function updateConfetti() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, i) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                p.vy += 0.3;
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life / 80;
+                ctx.fillRect(p.x, p.y, 8, 8);
+                if (p.life <= 0) particles.splice(i, 1);
+            });
+            if (particles.length > 0) requestAnimationFrame(updateConfetti);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            // Using e.code to ignore keyboard layout (e.g. Persian/English)
+            if (state.isGameActive && !e.repeat) handleInput(e.code, true);
+        });
+        window.addEventListener('keyup', (e) => {
+            if (state.isGameActive) handleInput(e.code, false);
+        });
+    </script>
+</body>
+</html>
